@@ -3,5 +3,3 @@ __pycache__/
 *.pyc
 .streamlit/secrets.toml
 temp_*.html
-data/*.json
-
