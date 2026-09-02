@@ -407,7 +407,7 @@ with tab1:
             title="Departmental Research Output Breakdown",
             text="publications",
             color="publications",
-            color_continuous_scale="Emerald",
+            color_continuous_scale="Greens",
         )
         fig_dept_breakdown.update_traces(textposition="outside")
         fig_dept_breakdown.update_layout(
