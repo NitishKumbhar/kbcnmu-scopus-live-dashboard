@@ -174,8 +174,8 @@ def fetch_from_scopus_api() -> list:
             response = requests.get(BASE_URL, headers=headers, params=params, timeout=15)
 
             if response.status_code != 200:
-                print(f"[Scopus API Error] Status {response.status_code}: {response.text[:200]}")
-                break
+                print(f"[Scopus API Warning] Cursor fetch returned status {response.status_code}. Retrying with offset pagination...")
+                return fetch_from_scopus_api_offset(query, headers)
 
             data = response.json()
             search_results = data.get("search-results", {})
@@ -210,8 +210,59 @@ def fetch_from_scopus_api() -> list:
             print(f"[Scopus API Exception] {e}")
             break
 
-    print(f"[Scopus API] Total documents fetched: {len(all_publications)}")
+    print(f"[Scopus API] Total documents fetched via cursor: {len(all_publications)}")
     return all_publications
+
+
+def fetch_from_scopus_api_offset(query: str, headers: dict) -> list:
+    """Fallback offset-based pagination (`start=0`, `start=25`, ...) when cursor entitlement is restricted."""
+    all_publications = []
+    start = 0
+    count = 25
+
+    print(f"[Scopus API Offset] Fetching with offset pagination...")
+
+    while True:
+        params = {
+            "query": query,
+            "count": count,
+            "start": start,
+            "view": "STANDARD",
+        }
+
+        try:
+            response = requests.get(BASE_URL, headers=headers, params=params, timeout=15)
+
+            if response.status_code != 200:
+                print(f"[Scopus API Offset Error] Status {response.status_code}: {response.text[:200]}")
+                break
+
+            data = response.json()
+            search_results = data.get("search-results", {})
+            entries = search_results.get("entry", [])
+
+            if not entries or (len(entries) == 1 and "error" in entries[0]):
+                break
+
+            for entry in entries:
+                parsed = parse_scopus_entry(entry)
+                all_publications.append(parsed)
+
+            total_results = int(search_results.get("opensearch:totalResults", 0))
+            start += count
+
+            if start >= total_results or start >= 5000 or len(entries) < count:
+                break
+
+            time.sleep(0.2)
+
+        except Exception as e:
+            print(f"[Scopus API Offset Exception] {e}")
+            break
+
+    print(f"[Scopus API Offset] Total documents fetched: {len(all_publications)}")
+    return all_publications
+
 
 
 def save_cache(publications: list, cache_file: str = None) -> dict:
