@@ -308,7 +308,7 @@ def get_custom_css(theme: str = "dark") -> str:
 
 def render_icare_topbar(theme: str = "dark"):
     """
-    Render Top Navigation Bar with both ICARE Logo and KBCNMU Logo.
+    Render Top Navigation Bar with KBCNMU Logo on LEFT and ICARE Logo on RIGHT.
     """
     css = get_custom_css(theme)
     st.markdown(css, unsafe_allow_html=True)
@@ -324,8 +324,8 @@ def render_icare_topbar(theme: str = "dark"):
     topbar_html = f"""
     <div class="icare-topbar">
         <div class="icare-topbar-left">
-            <div class="icare-logo-box">
-                <img src="data:image/png;base64,{icare_b64}" class="icare-logo-img" alt="ICARE Logo">
+            <div class="univ-logo-box" style="background: #FFFFFF; padding: 3px; border-radius: 8px; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px;">
+                <img src="data:image/jpeg;base64,{kbcnmu_b64}" style="width: 34px; height: 34px; object-fit: cover; border-radius: 6px;" alt="KBCNMU Logo">
             </div>
             <div class="icare-badge-pill">PORTAL INTELLIGENCE</div>
             <div class="icare-title-tag">
@@ -337,13 +337,14 @@ def render_icare_topbar(theme: str = "dark"):
                 <div class="univ-title-bold">{full_name}</div>
                 <div class="univ-sub-cyan">{nirf_id} • {city}</div>
             </div>
-            <div class="univ-logo-box">
-                <img src="data:image/jpeg;base64,{kbcnmu_b64}" class="univ-logo-img" alt="KBCNMU Logo">
+            <div class="icare-logo-box" style="background: #FFFFFF; padding: 4px 10px; border-radius: 8px; display: flex; align-items: center; justify-content: center; height: 34px;">
+                <img src="data:image/png;base64,{icare_b64}" style="height: 26px; object-fit: contain;" alt="ICARE Logo">
             </div>
         </div>
     </div>
     """
     st.markdown(topbar_html, unsafe_allow_html=True)
+
 
 
 def render_icare_hero(total_pubs: int, total_cites: int, theme: str = "dark"):

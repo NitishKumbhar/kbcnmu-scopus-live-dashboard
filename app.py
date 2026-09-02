@@ -196,7 +196,19 @@ with st.sidebar:
 
     # Collaboration Filter
     collab_opts = ["International", "Industry", "National"]
-    selected_collabs = st.multiselect("🌐 Collaboration Type", options=collab_opts, default=[], placeholder="Choose options")
+    selected_collabs = st.multiselect("🌐 Collaboration Scope", options=collab_opts, default=[], placeholder="Choose options")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Scopus Gateway & Sync Expander (Matching Screenshot)
+    with st.expander("⚙️ Scopus Gateway & API Sync", expanded=False):
+        if st.button("🔄 Sync Scopus Now", use_container_width=True):
+            with st.spinner("Connecting to Elsevier Scopus API..."):
+                load_scopus_data(force_refresh=True)
+            st.rerun()
+        st.caption(f"Last Synced: {data_res.get('last_synced_readable', 'N/A')}")
+
+    st.markdown("<div style='font-size: 0.75rem; color: #64748B; margin-top: 1rem;'>⚡ ICARE Portal Intelligence | KBCNMU</div>", unsafe_allow_html=True)
 
 
 # Apply Custom CSS Topbar & Theme
@@ -305,7 +317,7 @@ with m_col5:
 st.markdown("<br>", unsafe_allow_html=True)
 
 
-# 7. Dashboard 7 Analytical Tabs
+# 8. Dashboard 7 Analytical Tabs
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📈 Research Trends",
     "🎯 Citation & Impact",
@@ -375,6 +387,38 @@ with tab1:
         fig_month.update_traces(textposition="outside")
         apply_plotly_theme(fig_month, st.session_state.get("theme", "dark"))
         st.plotly_chart(fig_month, use_container_width=True)
+
+    # Departmental Research Output Breakdown Chart (Matching Friend's Screenshot)
+    st.markdown("<br>", unsafe_allow_html=True)
+    if not filtered_df.empty and "department" in filtered_df:
+        dept_output = (
+            filtered_df["department"]
+            .value_counts()
+            .reset_index()
+        )
+        dept_output.columns = ["department", "publications"]
+        dept_output = dept_output.sort_values("publications", ascending=True)
+
+        fig_dept_breakdown = px.bar(
+            dept_output,
+            x="publications",
+            y="department",
+            orientation="h",
+            title="Departmental Research Output Breakdown",
+            text="publications",
+            color="publications",
+            color_continuous_scale="Emerald",
+        )
+        fig_dept_breakdown.update_traces(textposition="outside")
+        fig_dept_breakdown.update_layout(
+            xaxis_title="Publications",
+            yaxis_title="Department",
+            coloraxis_showscale=False,
+            height=450,
+        )
+        apply_plotly_theme(fig_dept_breakdown, st.session_state.get("theme", "dark"))
+        st.plotly_chart(fig_dept_breakdown, use_container_width=True)
+
 
 
 # ----------------------------------------------------
