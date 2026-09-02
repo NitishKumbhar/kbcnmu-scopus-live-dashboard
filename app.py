@@ -99,32 +99,35 @@ def apply_plotly_theme(fig, theme: str = "dark"):
 
 # 5. Sidebar Controls & Scopus Gateway
 with st.sidebar:
-    # Brand Box
+    # Top Brand Box
     st.markdown(
         """
-        <div style="background: rgba(2, 132, 199, 0.15); border: 1px solid rgba(2, 132, 199, 0.35); border-radius: 14px; padding: 1rem; text-align: center; margin-bottom: 1.25rem;">
-            <div style="font-weight: 800; font-size: 1.1rem; color: #FFFFFF;">🏛️ KBCNMU PORTAL</div>
-            <div style="font-size: 0.78rem; font-weight: 700; color: #38BDF8; margin-top: 0.2rem;">Live Scopus Intelligence [IR-O-U-0320]</div>
+        <div style="background: #0A1428; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 0.85rem; text-align: left;">
+            <div style="font-weight: 800; font-size: 1.1rem; color: #FFFFFF; letter-spacing: 0.04em;">🏛️ KBCNMU PORTAL</div>
+            <div style="font-size: 0.72rem; font-weight: 700; color: #0284C7; letter-spacing: 0.05em; margin-top: 0.25rem;">LIVE SCOPUS INTELLIGENCE [IR-O-U-0320]</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Scopus Gateway Panel
-    st.markdown("### 📡 Scopus Gateway")
-    force_sync = st.button("🔄 Sync Scopus Now", use_container_width=True)
+    # Reset Dashboard Button
+    if st.button("🔄 Reset Dashboard", use_container_width=True):
+        st.session_state.clear()
+        st.rerun()
 
-    with st.spinner("Connecting to Scopus Intelligence Portal..."):
-        data_res = load_scopus_data(force_refresh=force_sync)
+    st.markdown("<div style='height: 0.4rem;'></div>", unsafe_allow_html=True)
+
+    # Scopus Gateway Panel & Feed Status Indicator
+    with st.spinner("Connecting to Scopus Intelligence..."):
+        data_res = load_scopus_data(force_refresh=False)
 
     raw_pubs = data_res.get("publications", [])
     df = pd.DataFrame(raw_pubs)
 
-    # Scopus Gateway Feed Status Indicator
     if data_res.get("is_live_scopus"):
         st.markdown(
             """
-            <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 0.5rem; text-align: center; font-size: 0.78rem; font-weight: 700; color: #10B981; margin-bottom: 1rem;">
+            <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 0.45rem; text-align: center; font-size: 0.78rem; font-weight: 700; color: #10B981; margin-bottom: 0.85rem;">
                 🟢 Live Scopus Feed • Auto-synced every 60m
             </div>
             """,
@@ -133,8 +136,8 @@ with st.sidebar:
     elif data_res.get("is_from_cache"):
         st.markdown(
             """
-            <div style="background: rgba(2, 132, 199, 0.15); border: 1px solid rgba(2, 132, 199, 0.3); border-radius: 8px; padding: 0.5rem; text-align: center; font-size: 0.78rem; font-weight: 700; color: #38BDF8; margin-bottom: 1rem;">
-                ⚡ Cached Scopus Feed (Age <60m)
+            <div style="background: rgba(2, 132, 199, 0.15); border: 1px solid rgba(2, 132, 199, 0.3); border-radius: 8px; padding: 0.45rem; text-align: center; font-size: 0.78rem; font-weight: 700; color: #38BDF8; margin-bottom: 0.85rem;">
+                ⚡ Live Scopus Feed • Auto-synced every 60m
             </div>
             """,
             unsafe_allow_html=True,
@@ -142,48 +145,67 @@ with st.sidebar:
     else:
         st.markdown(
             """
-            <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.5rem; text-align: center; font-size: 0.78rem; font-weight: 700; color: #F59E0B; margin-bottom: 1rem;">
+            <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.45rem; text-align: center; font-size: 0.78rem; font-weight: 700; color: #F59E0B; margin-bottom: 0.85rem;">
                 🟠 Offline Benchmark Dataset
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    st.caption(f"Last Synced: {data_res.get('last_synced_readable', 'N/A')}")
+    # Theme Toggle Buttons (Dark Mode | Light Mode)
+    col_t1, col_t2 = st.columns(2)
+    with col_t1:
+        if st.button("🌙 Dark Mode", use_container_width=True):
+            st.session_state["theme"] = "dark"
+            st.rerun()
+    with col_t2:
+        if st.button("☀️ Light Mode", use_container_width=True):
+            st.session_state["theme"] = "light"
+            st.rerun()
+
     st.markdown("---")
 
-    # Theme Toggle
-    st.markdown("### 🎨 Theme")
-    theme = st.radio("Dashboard Theme", ["Dark", "Light"], index=0, horizontal=True)
-    st.session_state["theme"] = theme.lower()
-    st.markdown("---")
-
-    # Interactive Dataset Filters
-    st.markdown("### 🎯 Dataset Filters")
+    # Section: NAVIGATE & FILTER
+    st.markdown("<div style='font-size: 0.8rem; font-weight: 800; color: #38BDF8; letter-spacing: 0.06em; margin-bottom: 0.5rem;'>🔍 NAVIGATE & FILTER</div>", unsafe_allow_html=True)
+    st.markdown("**📅 Evaluation Period**")
 
     # Year Slider 1950 - 2026
-    year_range = st.slider("📅 Publication Years", min_value=1950, max_value=2026, value=(1950, 2026))
+    year_range_val = st.slider("Evaluation Period", min_value=1950, max_value=2026, value=(1950, 2026), label_visibility="collapsed")
+
+    # Start Year / End Year Box Inputs
+    col_yr1, col_yr2 = st.columns(2)
+    with col_yr1:
+        start_yr = st.number_input("Start Year", min_value=1950, max_value=2026, value=year_range_val[0])
+    with col_yr2:
+        end_yr = st.number_input("End Year", min_value=1950, max_value=2026, value=year_range_val[1])
+
+    if st.button("🔄 Apply Year Range", use_container_width=True):
+        st.session_state["applied_yr_range"] = (start_yr, end_yr)
+
+    eval_yr_range = st.session_state.get("applied_yr_range", (start_yr, end_yr))
+
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # Department Filter
     all_depts = sorted(df["department"].unique().tolist()) if not df.empty and "department" in df else []
-    selected_depts = st.multiselect("🏛️ Departments", options=all_depts, default=[])
+    selected_depts = st.multiselect("🏛️ Department / School", options=all_depts, default=[], placeholder="Choose options")
 
     # Quartile Filter
     quartile_opts = ["Q1", "Q2", "Q3", "Q4"]
-    selected_quartiles = st.multiselect("⭐ Journal Quartile", options=quartile_opts, default=[])
+    selected_quartiles = st.multiselect("🏆 Journal Quartile (Q1-Q4)", options=quartile_opts, default=[], placeholder="Choose options")
 
     # Collaboration Filter
     collab_opts = ["International", "Industry", "National"]
-    selected_collabs = st.multiselect("🌐 Collaboration Type", options=collab_opts, default=[])
+    selected_collabs = st.multiselect("🌐 Collaboration Type", options=collab_opts, default=[], placeholder="Choose options")
 
 
-# Apply Custom CSS Topbar
+# Apply Custom CSS Topbar & Theme
 render_icare_topbar(st.session_state.get("theme", "dark"))
 
 # Filter Data
 filtered_df = filter_publications(
     df,
-    year_range=year_range,
+    year_range=eval_yr_range,
     depts=selected_depts,
     quartiles=selected_quartiles,
     collab_types=selected_collabs,
@@ -195,134 +217,93 @@ kpis = calculate_top_10_kpis(filtered_df)
 # Render Hero Banner
 render_icare_hero(kpis["total_output"], kpis["total_citations"], st.session_state.get("theme", "dark"))
 
-# 6. Top 10 Core Metric Cards Grid (5x2 Grid)
-r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
+# 6. Report Overview Bar (Matching Friend's Dashboard Screenshot)
+rep_col1, rep_col2 = st.columns([2, 1.8])
 
-with r1_c1:
+with rep_col1:
+    st.markdown(
+        """
+        <div style="font-weight: 700; font-size: 0.95rem; color: #FFFFFF; padding-top: 0.4rem;">
+            📄 REPORT: KBCNMU Live Scopus Intelligence Dashboard Overview
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with rep_col2:
+    b_ex1, b_ex2, b_print = st.columns(3)
+    with b_ex1:
+        excel_data = convert_df_to_excel(filtered_df)
+        st.download_button("📊 Export Excel", data=excel_data, file_name="kbcnmu_scopus.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+    with b_ex2:
+        bib_data = export_to_bibtex(filtered_df)
+        st.download_button("📑 Export BibTeX", data=bib_data, file_name="kbcnmu_scopus.bib", mime="text/x-bibtex", use_container_width=True)
+    with b_print:
+        if st.button("🖨️ Print Dashboard", use_container_width=True):
+            components.html("<script>window.parent.print();</script>", height=0)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# 7. Top 5 Metric Cards Row (Matching Friend's Dashboard Screenshot)
+m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
+
+with m_col1:
     st.markdown(
         f"""
         <div class="metric-card">
-            <div class="metric-title">Total Output</div>
+            <div class="metric-title">TOTAL SCOPUS OUTPUT <span>🏆</span></div>
             <div class="metric-value">{kpis['total_output']:,}</div>
-            <div class="metric-subtitle">Scopus Indexed</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-with r1_c2:
+with m_col2:
     st.markdown(
         f"""
         <div class="metric-card">
-            <div class="metric-title">2026 Volume</div>
+            <div class="metric-title">PUBLICATIONS - 2026 <span>🌴</span></div>
             <div class="metric-value">{kpis['vol_2026']:,}</div>
-            <div class="metric-subtitle">vs {kpis['vol_2025']:,} in 2025</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-with r1_c3:
+with m_col3:
     st.markdown(
         f"""
         <div class="metric-card">
-            <div class="metric-title">Total Citations</div>
-            <div class="metric-value">{kpis['total_citations']:,}</div>
-            <div class="metric-subtitle">Accrued Citations</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with r1_c4:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-title">CPP (Cites/Paper)</div>
-            <div class="metric-value">{kpis['cpp']}</div>
-            <div class="metric-subtitle">Citation Impact</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with r1_c5:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-title">Q1 Quality Share</div>
-            <div class="metric-value">{kpis['q1_pct']}%</div>
-            <div class="metric-subtitle">{kpis['q1_count']:,} Q1 Papers</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-
-r2_c1, r2_c2, r2_c3, r2_c4, r2_c5 = st.columns(5)
-
-with r2_c1:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-title">Intl Collab %</div>
-            <div class="metric-value">{kpis['intl_collab_pct']}%</div>
-            <div class="metric-subtitle">Global Co-Authors</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with r2_c2:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-title">Industry Collab %</div>
-            <div class="metric-value">{kpis['industry_collab_pct']}%</div>
-            <div class="metric-subtitle">Corporate R&D</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with r2_c3:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-title">Active Authors</div>
-            <div class="metric-value">{kpis['active_authors_count']:,}</div>
-            <div class="metric-subtitle">Unique Faculty</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with r2_c4:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-title">30-Day Velocity</div>
-            <div class="metric-value">~{kpis['velocity_30d']}</div>
-            <div class="metric-subtitle">Papers / Month</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with r2_c5:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-title">2025 Volume</div>
+            <div class="metric-title">PUBLICATIONS - 2025 <span>📅</span></div>
             <div class="metric-value">{kpis['vol_2025']:,}</div>
-            <div class="metric-subtitle">Prior Year Output</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with m_col4:
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-title">TOTAL CITATIONS <span>⭐</span></div>
+            <div class="metric-value">{kpis['total_citations']:,}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with m_col5:
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-title">CITATIONS PER PUB (CPP) <span>📈</span></div>
+            <div class="metric-value">{kpis['cpp']}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
 st.markdown("<br>", unsafe_allow_html=True)
+
 
 # 7. Dashboard 7 Analytical Tabs
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
