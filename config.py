@@ -3,8 +3,8 @@ UNIVERSITY_CONFIG = {
     "short_name": "KBCNMU",
     "city": "Jalgaon, Maharashtra",
     "status_tag": "🏛️ State Public University (Estd. 1990)",
-    "nirf_id": "IR-O-U-0314",
-    "naac_badge": "⭐ NAAC A (CGPA 3.11)",
+    "nirf_id": "IR-O-U-0320",
+    "naac_badge": "⭐ NAAC A (CGPA 3.09)",
     "scopus_query": (
         "AF-ID(60028248) OR AF-ID(60032488) OR "
         "AFFIL({Kavayitri Bahinabai Chaudhari North Maharashtra University}) OR "
