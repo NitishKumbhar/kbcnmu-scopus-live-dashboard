@@ -5,18 +5,20 @@ Main Streamlit application featuring ICARE Glassmorphism design, real-time Scopu
 10 Core KPIs, and interactive Plotly visualization Tabs 1 through 4.
 """
 
+import base64
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as bg
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
+import streamlit.components.v1 as components
 
 from config import UNIVERSITY_CONFIG
 from data_processor import (
     calculate_top_10_kpis,
     export_to_bibtex,
     filter_publications,
+    generate_author_print_html,
     get_author_profile_metrics,
     get_publications_by_month,
     get_publications_by_year,
@@ -524,24 +526,279 @@ with tab4:
 
 
 # ----------------------------------------------------
-# TAB 5: 👤 AUTHOR LEADERBOARD & BIBTEX EXPORT
+# TAB 5: 👥 FACULTY AUTHORS & PROFILE DOSSIER
 # ----------------------------------------------------
 with tab5:
-    st.markdown("### 👤 Faculty Research Leaderboard & BibTeX Export")
-    l_col1, l_col2 = st.columns([2, 1])
+    st.markdown("### 👥 Faculty Research Leaderboard & Deep-Dive Profile Inspection")
 
-    with l_col1:
-        leaderboard = get_top_authors_leaderboard(filtered_df, top_n=25)
-        st.dataframe(leaderboard, use_container_width=True, height=450)
+    # 1. Top 3 Faculty Podium Cards
+    top3_leaderboard = get_top_authors_leaderboard(filtered_df, top_n=3)
+    if not top3_leaderboard.empty:
+        p_col1, p_col2, p_col3 = st.columns(3)
 
-    with l_col2:
-        st.markdown("#### 📥 Export BibTeX")
-        st.caption("Generate citation entries for all filtered records.")
-        bib_str = export_to_bibtex(filtered_df.head(100))
-        st.download_button(
-            label="📥 Download BibTeX (.bib)",
-            data=bib_str,
-            file_name="kbcnmu_scopus_export.bib",
-            mime="text/x-bibtex",
-            use_container_width=True,
+        podium_styles = [
+            ("🥇 GOLD PODIUM", "#F59E0B", "rgba(245, 158, 11, 0.15)", "1px solid rgba(245, 158, 11, 0.4)"),
+            ("🥈 SILVER PODIUM", "#94A3B8", "rgba(148, 163, 184, 0.15)", "1px solid rgba(148, 163, 184, 0.4)"),
+            ("🥉 BRONZE PODIUM", "#D97706", "rgba(217, 119, 6, 0.15)", "1px solid rgba(217, 119, 6, 0.4)"),
+        ]
+
+        cols = [p_col1, p_col2, p_col3]
+        for idx, row in top3_leaderboard.iterrows():
+            if idx < 3:
+                label, color, bg_c, border_c = podium_styles[idx]
+                with cols[idx]:
+                    st.markdown(
+                        f"""
+                        <div style="background: {bg_c}; border: {border_c}; border-radius: 16px; padding: 1.25rem; text-align: center;">
+                            <div style="font-size: 0.75rem; font-weight: 800; color: {color}; letter-spacing: 0.08em; margin-bottom: 0.4rem;">{label}</div>
+                            <div style="font-size: 1.35rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.5rem;">👨‍🏫 {row['author']}</div>
+                            <div style="display: flex; justify-content: space-around; background: rgba(0,0,0,0.25); border-radius: 10px; padding: 0.6rem; font-size: 0.85rem;">
+                                <div><div style="font-weight: 800; color: #38BDF8;">{row['papers']}</div><div style="font-size: 0.7rem; color: #94A3B8;">Papers</div></div>
+                                <div><div style="font-weight: 800; color: #F59E0B;">{row['citations']:,}</div><div style="font-size: 0.7rem; color: #94A3B8;">Cites</div></div>
+                                <div><div style="font-weight: 800; color: #10B981;">{row['cpp']}</div><div style="font-size: 0.7rem; color: #94A3B8;">CPP</div></div>
+                                <div><div style="font-weight: 800; color: #EC4899;">{row['h_index']}</div><div style="font-size: 0.7rem; color: #94A3B8;">h-Index</div></div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+    # Expandable Full Faculty Leaderboard
+    with st.expander("📋 Full Faculty Leaderboard Table & BibTeX Export", expanded=False):
+        full_lb_col1, full_lb_col2 = st.columns([3, 1])
+        with full_lb_col1:
+            full_leaderboard = get_top_authors_leaderboard(filtered_df, top_n=500)
+            st.dataframe(full_leaderboard, use_container_width=True, height=350)
+        with full_lb_col2:
+            st.markdown("#### 📥 Export BibTeX")
+            st.caption("Download BibTeX entries for all filtered records.")
+            bib_str = export_to_bibtex(filtered_df.head(100))
+            st.download_button(
+                label="📥 Download BibTeX (.bib)",
+                data=bib_str,
+                file_name="kbcnmu_scopus_export.bib",
+                mime="text/x-bibtex",
+                use_container_width=True,
+            )
+
+    st.markdown("---")
+
+    # 2. Interactive Faculty Selector & Print Profile Button
+    all_authors_df = get_top_authors_leaderboard(filtered_df, top_n=1000)
+    all_author_names = all_authors_df["author"].tolist() if not all_authors_df.empty else []
+
+    sel_col, btn_col = st.columns([3, 1])
+
+    with sel_col:
+        selected_author = st.selectbox(
+            "👨‍🏫 Select Faculty Researcher for Deep-Dive Inspection",
+            options=all_author_names,
+            index=0 if all_author_names else 0,
         )
+
+    # Get Author Profile Metrics
+    auth_prof = get_author_profile_metrics(filtered_df, selected_author) if selected_author else {}
+
+    with btn_col:
+        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+        do_print = st.button("🖨️ Print Profile", use_container_width=True)
+
+    # Handle Isolated Printing Trigger
+    if do_print and auth_prof:
+        print_html = generate_author_print_html(auth_prof)
+        b64_html = base64.b64encode(print_html.encode("utf-8")).decode("utf-8")
+
+        iframe_js = f"""
+        <script>
+        (function() {{
+        const b64 = "{b64_html}";
+        const html = decodeURIComponent(escape(window.atob(b64)));
+        const parentDoc = (window.parent && window.parent.document) ? window.parent.document : document;
+        let frame = parentDoc.getElementById('author-print-isolated-frame');
+        if (frame) frame.remove();
+        frame = parentDoc.createElement('iframe');
+        frame.id = 'author-print-isolated-frame';
+        frame.style.position = 'fixed'; frame.style.right = '0'; frame.style.bottom = '0';
+        frame.style.width = '0'; frame.style.height = '0'; frame.style.border = '0';
+        parentDoc.body.appendChild(frame);
+        const doc = frame.contentWindow.document;
+        doc.open(); doc.write(html); doc.close();
+        setTimeout(() => {{ frame.contentWindow.focus(); frame.contentWindow.print(); }}, 350);
+        }})();
+        </script>
+        """
+        components.html(iframe_js, height=0)
+        st.toast(f"🖨️ Isolated print job launched for Prof. {selected_author}!", icon="🖨️")
+
+    # 3. Dynamic Author Dossier View
+    if auth_prof and selected_author:
+        st.markdown(
+            f"""
+            <div style="background: rgba(2, 132, 199, 0.1); border: 1px solid rgba(2, 132, 199, 0.3); border-radius: 16px; padding: 1.5rem; margin-top: 1rem; margin-bottom: 1.5rem;">
+                <div style="font-size: 1.8rem; font-weight: 800; color: #FFFFFF;">👨‍🏫 {auth_prof['author_name']}</div>
+                <div style="font-size: 0.95rem; color: #38BDF8; font-weight: 600; margin-top: 0.2rem;">
+                    🏛️ {auth_prof['department']} &nbsp;|&nbsp; 📖 Primary Journal: {auth_prof['top_journal']}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # 5 KPI Chips
+        k1, k2, k3, k4, k5 = st.columns(5)
+        with k1:
+            st.markdown(
+                f"""
+                <div class="metric-card">
+                    <div class="metric-title">Publications</div>
+                    <div class="metric-value">{auth_prof['total_papers']}</div>
+                    <div class="metric-subtitle">Scopus Indexed</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with k2:
+            st.markdown(
+                f"""
+                <div class="metric-card">
+                    <div class="metric-title">Citations</div>
+                    <div class="metric-value">{auth_prof['total_citations']:,}</div>
+                    <div class="metric-subtitle">Total Accrued</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with k3:
+            st.markdown(
+                f"""
+                <div class="metric-card">
+                    <div class="metric-title">CPP</div>
+                    <div class="metric-value">{auth_prof['cpp']}</div>
+                    <div class="metric-subtitle">Cites Per Paper</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with k4:
+            st.markdown(
+                f"""
+                <div class="metric-card">
+                    <div class="metric-title">h-Index</div>
+                    <div class="metric-value">{auth_prof['h_index']}</div>
+                    <div class="metric-subtitle">Estimated Metric</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with k5:
+            st.markdown(
+                f"""
+                <div class="metric-card">
+                    <div class="metric-title">Q1 Ratio</div>
+                    <div class="metric-value">{auth_prof['q1_ratio']}%</div>
+                    <div class="metric-subtitle">{auth_prof['q1_papers']} Q1 Papers</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Badges Row
+        st.markdown(
+            f"""
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                <span class="hero-pill hero-pill-gold">⭐ Q1 Papers: {auth_prof['q1_papers']}</span>
+                <span class="hero-pill">🌐 International Collab: {auth_prof['intl_pct']}%</span>
+                <span class="hero-pill">🏢 Industry Collab: {auth_prof['industry_pct']}%</span>
+                <span class="hero-pill">👥 Co-Authors Count: {auth_prof['coauthors_count']}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Author Charts
+        author_df = auth_prof.get("author_df", pd.DataFrame())
+        if not author_df.empty:
+            ac_col1, ac_col2 = st.columns(2)
+
+            with ac_col1:
+                # Dual-Axis Velocity Chart for Author
+                author_yearly = (
+                    author_df.groupby("year")
+                    .agg(publications=("scopus_id", "count"), citations=("citations", "sum"))
+                    .reset_index()
+                    .sort_values("year")
+                )
+
+                fig_auth_trend = make_subplots(specs=[[{"secondary_y": True}]])
+                fig_auth_trend.add_trace(
+                    go.Bar(
+                        x=author_yearly["year"],
+                        y=author_yearly["publications"],
+                        name="Annual Output",
+                        marker_color="#0284C7",
+                    ),
+                    secondary_y=False,
+                )
+                fig_auth_trend.add_trace(
+                    go.Scatter(
+                        x=author_yearly["year"],
+                        y=author_yearly["citations"],
+                        name="Citations Accrued",
+                        line=dict(color="#F59E0B", width=3),
+                        mode="lines+markers",
+                    ),
+                    secondary_y=True,
+                )
+                fig_auth_trend.update_layout(title=f"📈 {selected_author} Output & Citation Trajectory")
+                fig_auth_trend.update_yaxes(title_text="Publications", secondary_y=False)
+                fig_auth_trend.update_yaxes(title_text="Citations", secondary_y=True)
+                apply_plotly_theme(fig_auth_trend, st.session_state.get("theme", "dark"))
+                st.plotly_chart(fig_auth_trend, use_container_width=True)
+
+            with ac_col2:
+                # Author Quartile Donut Chart
+                auth_q_counts = author_df["quartile"].value_counts().reset_index()
+                auth_q_counts.columns = ["quartile", "count"]
+
+                fig_auth_q = px.pie(
+                    auth_q_counts,
+                    values="count",
+                    names="quartile",
+                    title=f"🍩 {selected_author} Journal Quartile Breakdown",
+                    hole=0.45,
+                    color="quartile",
+                    color_discrete_map={
+                        "Q1": "#10B981",
+                        "Q2": "#3B82F6",
+                        "Q3": "#F59E0B",
+                        "Q4": "#EF4444",
+                    },
+                )
+                apply_plotly_theme(fig_auth_q, st.session_state.get("theme", "dark"))
+                st.plotly_chart(fig_auth_q, use_container_width=True)
+
+            # Top 5 Landmark Contributions
+            st.markdown(f"#### 📜 Top 5 Landmark Contributions - {selected_author}")
+            top5_auth_papers = author_df.sort_values(by="citations", ascending=False).head(5).copy()
+            top5_auth_papers["DOI Link"] = top5_auth_papers["doi"].apply(
+                lambda d: f'<a href="https://doi.org/{d}" target="_blank">DOI ↗</a>' if d else "N/A"
+            )
+            st.write(
+                top5_auth_papers[["title", "journal", "year", "citations", "quartile", "DOI Link"]].to_html(
+                    escape=False, index=False
+                ),
+                unsafe_allow_html=True,
+            )
+
+            # Full Papers Table
+            st.markdown(f"#### 📚 Complete Indexed Publications ({len(author_df)})")
+            st.dataframe(
+                author_df[["year", "title", "journal", "quartile", "citations", "doi"]].sort_values(
+                    by="year", ascending=False
+                ),
+                use_container_width=True,
+                height=350,
+            )
+
