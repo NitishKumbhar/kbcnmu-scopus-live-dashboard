@@ -1,8 +1,8 @@
 """
 app.py
-KBCNMU Live Scopus Intelligence Dashboard
-Main Streamlit application featuring ICARE Glassmorphism design, real-time Scopus API integration,
-10 Core KPIs, and interactive Plotly visualization Tabs 1 through 4.
+KBCNMU Live Scopus Intelligence Dashboard - Master Production Application
+Features ICARE Glassmorphism design, responsive desktop/mobile layout, real-time Elsevier Scopus API gateway,
+10 Core KPIs, and 7 interactive analytical tabs with isolated printing and AI Copilot.
 """
 
 import base64
@@ -29,20 +29,6 @@ from data_processor import (
 from scopus_api import load_scopus_data
 from styles import get_custom_css, render_icare_hero, render_icare_topbar
 
-
-def convert_df_to_excel(export_df: pd.DataFrame) -> bytes:
-    """Convert publication DataFrame to downloadable Excel bytes buffer."""
-    output = io.BytesIO()
-    # Remove complex types like lists before exporting
-    clean_df = export_df.copy()
-    if "countries" in clean_df:
-        clean_df["countries"] = clean_df["countries"].apply(lambda c: ", ".join(c) if isinstance(c, list) else str(c))
-
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        clean_df.to_excel(writer, index=False, sheet_name="KBCNMU_Publications")
-    return output.getvalue()
-
-
 # 1. Page Configuration
 st.set_page_config(
     page_title=UNIVERSITY_CONFIG["app_title"],
@@ -52,7 +38,44 @@ st.set_page_config(
 )
 
 
-# 2. Plotly Theme Helper
+# 2. Responsive Sidebar JavaScript Injection
+responsive_js = """
+<script>
+(function() {
+    const parentDoc = (window.parent && window.parent.document) ? window.parent.document : document;
+    function adjustSidebar() {
+        const sidebar = parentDoc.querySelector('section[data-testid="stSidebar"]');
+        if (!sidebar) return;
+        if (window.innerWidth > 768) {
+            sidebar.setAttribute('aria-expanded', 'true');
+        } else {
+            sidebar.setAttribute('aria-expanded', 'false');
+        }
+    }
+    adjustSidebar();
+    window.addEventListener('resize', adjustSidebar);
+})();
+</script>
+"""
+components.html(responsive_js, height=0)
+
+
+# 3. Excel Export Helper
+def convert_df_to_excel(export_df: pd.DataFrame) -> bytes:
+    """Convert publication DataFrame to downloadable Excel bytes buffer."""
+    output = io.BytesIO()
+    clean_df = export_df.copy()
+    if "countries" in clean_df:
+        clean_df["countries"] = clean_df["countries"].apply(
+            lambda c: ", ".join(c) if isinstance(c, list) else str(c)
+        )
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        clean_df.to_excel(writer, index=False, sheet_name="KBCNMU_Publications")
+    return output.getvalue()
+
+
+# 4. Plotly Theme Helper
 def apply_plotly_theme(fig, theme: str = "dark"):
     """Format Plotly charts to match dark or light ICARE glassmorphism styling."""
     is_dark = theme.lower() == "dark"
@@ -67,63 +90,79 @@ def apply_plotly_theme(fig, theme: str = "dark"):
         plot_bgcolor=plot_bg,
         font=dict(family="Inter, sans-serif", color=font_color, size=12),
         margin=dict(l=40, r=40, t=50, b=40),
-        legend=dict(
-            bgcolor="rgba(0,0,0,0)",
-            font=dict(color=font_color),
-        ),
-        xaxis=dict(
-            gridcolor=grid_color,
-            zerolinecolor=grid_color,
-            tickfont=dict(color=font_color),
-        ),
-        yaxis=dict(
-            gridcolor=grid_color,
-            zerolinecolor=grid_color,
-            tickfont=dict(color=font_color),
-        ),
+        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=font_color)),
+        xaxis=dict(gridcolor=grid_color, zerolinecolor=grid_color, tickfont=dict(color=font_color)),
+        yaxis=dict(gridcolor=grid_color, zerolinecolor=grid_color, tickfont=dict(color=font_color)),
     )
     return fig
 
 
-# 3. Sidebar Controls
+# 5. Sidebar Controls & Scopus Gateway
 with st.sidebar:
-    st.image("LOGO/download.png", use_container_width=True) if pd.io.common.file_exists("LOGO/download.png") else st.title("🏛️ KBCNMU")
-    st.markdown("### ⚙️ Portal Controls")
+    # Brand Box
+    st.markdown(
+        """
+        <div style="background: rgba(2, 132, 199, 0.15); border: 1px solid rgba(2, 132, 199, 0.35); border-radius: 14px; padding: 1rem; text-align: center; margin-bottom: 1.25rem;">
+            <div style="font-weight: 800; font-size: 1.1rem; color: #FFFFFF;">🏛️ KBCNMU PORTAL</div>
+            <div style="font-size: 0.78rem; font-weight: 700; color: #38BDF8; margin-top: 0.2rem;">Live Scopus Intelligence [IR-O-U-0320]</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    # Theme Toggle
-    theme = st.radio("🎨 Dashboard Theme", ["Dark", "Light"], index=0, horizontal=True)
-    st.session_state["theme"] = theme.lower()
+    # Scopus Gateway Panel
+    st.markdown("### 📡 Scopus Gateway")
+    force_sync = st.button("🔄 Sync Scopus Now", use_container_width=True)
 
-    # Manual Scopus Sync Button
-    st.markdown("---")
-    st.markdown("### 🔄 Scopus API Sync")
-    force_sync = st.button("⚡ Sync Live Scopus API", use_container_width=True)
-
-    # Load Scopus Data (Cache or Live API or Fallback)
     with st.spinner("Connecting to Scopus Intelligence Portal..."):
         data_res = load_scopus_data(force_refresh=force_sync)
 
     raw_pubs = data_res.get("publications", [])
     df = pd.DataFrame(raw_pubs)
 
-    # Display Data Source Badge
+    # Scopus Gateway Feed Status Indicator
     if data_res.get("is_live_scopus"):
-        st.success("🟢 Live Scopus API Active")
+        st.markdown(
+            """
+            <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 0.5rem; text-align: center; font-size: 0.78rem; font-weight: 700; color: #10B981; margin-bottom: 1rem;">
+                🟢 Live Scopus Feed • Auto-synced every 60m
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     elif data_res.get("is_from_cache"):
-        st.info(f"⚡ Cached (Age: <60m)")
+        st.markdown(
+            """
+            <div style="background: rgba(2, 132, 199, 0.15); border: 1px solid rgba(2, 132, 199, 0.3); border-radius: 8px; padding: 0.5rem; text-align: center; font-size: 0.78rem; font-weight: 700; color: #38BDF8; margin-bottom: 1rem;">
+                ⚡ Cached Scopus Feed (Age <60m)
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     else:
-        st.warning("🟠 Benchmark Offline Dataset")
+        st.markdown(
+            """
+            <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.5rem; text-align: center; font-size: 0.78rem; font-weight: 700; color: #F59E0B; margin-bottom: 1rem;">
+                🟠 Offline Benchmark Dataset
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     st.caption(f"Last Synced: {data_res.get('last_synced_readable', 'N/A')}")
     st.markdown("---")
 
-    # Interactive Filters
+    # Theme Toggle
+    st.markdown("### 🎨 Theme")
+    theme = st.radio("Dashboard Theme", ["Dark", "Light"], index=0, horizontal=True)
+    st.session_state["theme"] = theme.lower()
+    st.markdown("---")
+
+    # Interactive Dataset Filters
     st.markdown("### 🎯 Dataset Filters")
 
-    # Year Filter
-    min_yr = int(df["year"].min()) if not df.empty and "year" in df else 1992
-    max_yr = int(df["year"].max()) if not df.empty and "year" in df else 2026
-    year_range = st.slider("📅 Publication Years", min_value=min_yr, max_value=max_yr, value=(min_yr, max_yr))
+    # Year Slider 1950 - 2026
+    year_range = st.slider("📅 Publication Years", min_value=1950, max_value=2026, value=(1950, 2026))
 
     # Department Filter
     all_depts = sorted(df["department"].unique().tolist()) if not df.empty and "department" in df else []
@@ -137,7 +176,8 @@ with st.sidebar:
     collab_opts = ["International", "Industry", "National"]
     selected_collabs = st.multiselect("🌐 Collaboration Type", options=collab_opts, default=[])
 
-# Apply Custom CSS
+
+# Apply Custom CSS Topbar
 render_icare_topbar(st.session_state.get("theme", "dark"))
 
 # Filter Data
@@ -149,28 +189,28 @@ filtered_df = filter_publications(
     collab_types=selected_collabs,
 )
 
-# Compute KPIs
+# Compute 10 Core KPIs
 kpis = calculate_top_10_kpis(filtered_df)
 
 # Render Hero Banner
 render_icare_hero(kpis["total_output"], kpis["total_citations"], st.session_state.get("theme", "dark"))
 
-# 4. Top 10 Core Metric Cards
-m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
+# 6. Top 10 Core Metric Cards Grid (5x2 Grid)
+r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
 
-with m_col1:
+with r1_c1:
     st.markdown(
         f"""
         <div class="metric-card">
             <div class="metric-title">Total Output</div>
             <div class="metric-value">{kpis['total_output']:,}</div>
-            <div class="metric-subtitle">Indexed Papers</div>
+            <div class="metric-subtitle">Scopus Indexed</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-with m_col2:
+with r1_c2:
     st.markdown(
         f"""
         <div class="metric-card">
@@ -182,19 +222,31 @@ with m_col2:
         unsafe_allow_html=True,
     )
 
-with m_col3:
+with r1_c3:
     st.markdown(
         f"""
         <div class="metric-card">
-            <div class="metric-title">Citations Per Paper</div>
-            <div class="metric-value">{kpis['cpp']}</div>
-            <div class="metric-subtitle">Total: {kpis['total_citations']:,}</div>
+            <div class="metric-title">Total Citations</div>
+            <div class="metric-value">{kpis['total_citations']:,}</div>
+            <div class="metric-subtitle">Accrued Citations</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-with m_col4:
+with r1_c4:
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-title">CPP (Cites/Paper)</div>
+            <div class="metric-value">{kpis['cpp']}</div>
+            <div class="metric-subtitle">Citation Impact</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with r1_c5:
     st.markdown(
         f"""
         <div class="metric-card">
@@ -206,13 +258,65 @@ with m_col4:
         unsafe_allow_html=True,
     )
 
-with m_col5:
+st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+
+r2_c1, r2_c2, r2_c3, r2_c4, r2_c5 = st.columns(5)
+
+with r2_c1:
     st.markdown(
         f"""
         <div class="metric-card">
             <div class="metric-title">Intl Collab %</div>
             <div class="metric-value">{kpis['intl_collab_pct']}%</div>
-            <div class="metric-subtitle">Industry: {kpis['industry_collab_pct']}%</div>
+            <div class="metric-subtitle">Global Co-Authors</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with r2_c2:
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-title">Industry Collab %</div>
+            <div class="metric-value">{kpis['industry_collab_pct']}%</div>
+            <div class="metric-subtitle">Corporate R&D</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with r2_c3:
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-title">Active Authors</div>
+            <div class="metric-value">{kpis['active_authors_count']:,}</div>
+            <div class="metric-subtitle">Unique Faculty</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with r2_c4:
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-title">30-Day Velocity</div>
+            <div class="metric-value">~{kpis['velocity_30d']}</div>
+            <div class="metric-subtitle">Papers / Month</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with r2_c5:
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-title">2025 Volume</div>
+            <div class="metric-value">{kpis['vol_2025']:,}</div>
+            <div class="metric-subtitle">Prior Year Output</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -220,7 +324,7 @@ with m_col5:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 5. Dashboard Visualization Tabs
+# 7. Dashboard 7 Analytical Tabs
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📈 Research Trends",
     "🎯 Citation & Impact",
@@ -243,10 +347,7 @@ with tab1:
         if not yearly_data.empty:
             yearly_data["cumulative_pubs"] = yearly_data["publications"].cumsum()
 
-            # Dual-Axis Plotly Chart
             fig_trends = make_subplots(specs=[[{"secondary_y": True}]])
-
-            # Primary Axis: Annual Publications Bar Chart
             fig_trends.add_trace(
                 go.Bar(
                     x=yearly_data["year"],
@@ -257,8 +358,6 @@ with tab1:
                 ),
                 secondary_y=False,
             )
-
-            # Secondary Axis: Cumulative Total Gold Line
             fig_trends.add_trace(
                 go.Scatter(
                     x=yearly_data["year"],
@@ -269,9 +368,8 @@ with tab1:
                 ),
                 secondary_y=True,
             )
-
             fig_trends.update_layout(
-                title="Annual vs. Cumulative Publication Trajectory (1992 - 2026)",
+                title="Annual vs. Cumulative Publication Trajectory",
                 hovermode="x unified",
             )
             fig_trends.update_yaxes(title_text="Annual Output", secondary_y=False)
@@ -282,8 +380,7 @@ with tab1:
             st.info("No publication data matching selected filters.")
 
     with t1_col2:
-        # Monthly Velocity Chart
-        target_year = max_yr
+        target_year = 2026
         monthly_df = get_publications_by_month(filtered_df, target_year)
 
         fig_month = px.bar(
@@ -328,7 +425,6 @@ with tab2:
                 .reset_index()
                 .sort_values("citations", ascending=True)
             )
-
             fig_dept_cites = px.bar(
                 dept_cites,
                 x="citations",
@@ -348,11 +444,7 @@ with tab2:
             lambda d: f'<a href="https://doi.org/{d}" target="_blank">DOI ↗</a>' if d else "N/A"
         )
         display_df = top_cited[["title", "primary_author", "journal", "year", "citations", "quartile", "DOI Link"]]
-
-        st.write(
-            display_df.to_html(escape=False, index=False),
-            unsafe_allow_html=True,
-        )
+        st.write(display_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 
 # ----------------------------------------------------
@@ -363,7 +455,6 @@ with tab3:
     t3_col1, t3_col2 = st.columns([3, 2])
 
     with t3_col1:
-        # Global Map
         country_counts = {}
         if not filtered_df.empty and "countries" in filtered_df:
             for countries_list in filtered_df["countries"].dropna():
@@ -371,7 +462,6 @@ with tab3:
                     country_counts[c] = country_counts.get(c, 0) + 1
 
         country_df = pd.DataFrame(list(country_counts.items()), columns=["country", "count"])
-
         if not country_df.empty:
             fig_map = px.choropleth(
                 country_df,
@@ -444,16 +534,15 @@ with tab4:
     t4_col1, t4_col2 = st.columns(2)
 
     with t4_col1:
-        # Quartile Donut Chart with Exact Required Colors
         if not filtered_df.empty:
             q_counts = filtered_df["quartile"].value_counts().reset_index()
             q_counts.columns = ["quartile", "count"]
 
             quartile_color_map = {
-                "Q1": "#10B981",  # Emerald Green
-                "Q2": "#3B82F6",  # Royal Blue
-                "Q3": "#F59E0B",  # Amber Gold
-                "Q4": "#EF4444",  # Crimson Red
+                "Q1": "#10B981",
+                "Q2": "#3B82F6",
+                "Q3": "#F59E0B",
+                "Q4": "#EF4444",
             }
 
             fig_donut = px.pie(
@@ -469,7 +558,6 @@ with tab4:
             st.plotly_chart(fig_donut, use_container_width=True)
 
     with t4_col2:
-        # Quadrant Bubble Chart (Volume vs. CPP with Benchmark Line)
         if not filtered_df.empty:
             dept_summary = (
                 filtered_df.groupby("department")
@@ -493,20 +581,16 @@ with tab4:
                 title="📍 Department Impact vs. Volume Quadrant",
                 hover_data=["avg_citescore"],
             )
-
-            # Gold dashed benchmark line for Average CPP
             fig_bubble.add_hline(
                 y=avg_cpp_bench,
                 line_dash="dash",
                 line_color="#F59E0B",
-                annotation_text=f"KBCNMU Average CPP ({avg_cpp_bench})",
+                annotation_text=f"Average CPP ({avg_cpp_bench})",
                 annotation_position="top right",
             )
-
             apply_plotly_theme(fig_bubble, st.session_state.get("theme", "dark"))
             st.plotly_chart(fig_bubble, use_container_width=True)
 
-    # Department Radar Benchmark Chart
     st.markdown("#### 🎯 Department Multi-Dimensional Radar Benchmark")
     if not filtered_df.empty:
         radar_df = (
@@ -519,10 +603,7 @@ with tab4:
             )
             .reset_index()
         )
-
         fig_radar = go.Figure()
-        categories = ["Output", "Citations", "Q1_Share", "Intl_Collab"]
-
         for _, row in radar_df.head(5).iterrows():
             fig_radar.add_trace(
                 go.Scatterpolar(
@@ -532,13 +613,7 @@ with tab4:
                     name=row["department"],
                 )
             )
-
-        fig_radar.update_layout(
-            polar=dict(
-                radialaxis=dict(visible=True, showticklabels=True),
-            ),
-            title="Departmental Comparative Radar Benchmark (Top 5 Schools)",
-        )
+        fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, showticklabels=True)), title="Departmental Comparative Radar Benchmark")
         apply_plotly_theme(fig_radar, st.session_state.get("theme", "dark"))
         st.plotly_chart(fig_radar, use_container_width=True)
 
@@ -549,17 +624,14 @@ with tab4:
 with tab5:
     st.markdown("### 👥 Faculty Research Leaderboard & Deep-Dive Profile Inspection")
 
-    # 1. Top 3 Faculty Podium Cards
     top3_leaderboard = get_top_authors_leaderboard(filtered_df, top_n=3)
     if not top3_leaderboard.empty:
         p_col1, p_col2, p_col3 = st.columns(3)
-
         podium_styles = [
             ("🥇 GOLD PODIUM", "#F59E0B", "rgba(245, 158, 11, 0.15)", "1px solid rgba(245, 158, 11, 0.4)"),
             ("🥈 SILVER PODIUM", "#94A3B8", "rgba(148, 163, 184, 0.15)", "1px solid rgba(148, 163, 184, 0.4)"),
             ("🥉 BRONZE PODIUM", "#D97706", "rgba(217, 119, 6, 0.15)", "1px solid rgba(217, 119, 6, 0.4)"),
         ]
-
         cols = [p_col1, p_col2, p_col3]
         for idx, row in top3_leaderboard.iterrows():
             if idx < 3:
@@ -581,7 +653,6 @@ with tab5:
                         unsafe_allow_html=True,
                     )
 
-    # Expandable Full Faculty Leaderboard
     with st.expander("📋 Full Faculty Leaderboard Table & BibTeX Export", expanded=False):
         full_lb_col1, full_lb_col2 = st.columns([3, 1])
         with full_lb_col1:
@@ -589,7 +660,6 @@ with tab5:
             st.dataframe(full_leaderboard, use_container_width=True, height=350)
         with full_lb_col2:
             st.markdown("#### 📥 Export BibTeX")
-            st.caption("Download BibTeX entries for all filtered records.")
             bib_str = export_to_bibtex(filtered_df.head(100))
             st.download_button(
                 label="📥 Download BibTeX (.bib)",
@@ -601,12 +671,10 @@ with tab5:
 
     st.markdown("---")
 
-    # 2. Interactive Faculty Selector & Print Profile Button
     all_authors_df = get_top_authors_leaderboard(filtered_df, top_n=1000)
     all_author_names = all_authors_df["author"].tolist() if not all_authors_df.empty else []
 
     sel_col, btn_col = st.columns([3, 1])
-
     with sel_col:
         selected_author = st.selectbox(
             "👨‍🏫 Select Faculty Researcher for Deep-Dive Inspection",
@@ -614,14 +682,12 @@ with tab5:
             index=0 if all_author_names else 0,
         )
 
-    # Get Author Profile Metrics
     auth_prof = get_author_profile_metrics(filtered_df, selected_author) if selected_author else {}
 
     with btn_col:
         st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
         do_print = st.button("🖨️ Print Profile", use_container_width=True)
 
-    # Handle Isolated Printing Trigger
     if do_print and auth_prof:
         print_html = generate_author_print_html(auth_prof)
         b64_html = base64.b64encode(print_html.encode("utf-8")).decode("utf-8")
@@ -648,7 +714,6 @@ with tab5:
         components.html(iframe_js, height=0)
         st.toast(f"🖨️ Isolated print job launched for Prof. {selected_author}!", icon="🖨️")
 
-    # 3. Dynamic Author Dossier View
     if auth_prof and selected_author:
         st.markdown(
             f"""
@@ -662,7 +727,6 @@ with tab5:
             unsafe_allow_html=True,
         )
 
-        # 5 KPI Chips
         k1, k2, k3, k4, k5 = st.columns(5)
         with k1:
             st.markdown(
@@ -722,7 +786,6 @@ with tab5:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Badges Row
         st.markdown(
             f"""
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
@@ -735,20 +798,16 @@ with tab5:
             unsafe_allow_html=True,
         )
 
-        # Author Charts
         author_df = auth_prof.get("author_df", pd.DataFrame())
         if not author_df.empty:
             ac_col1, ac_col2 = st.columns(2)
-
             with ac_col1:
-                # Dual-Axis Velocity Chart for Author
                 author_yearly = (
                     author_df.groupby("year")
                     .agg(publications=("scopus_id", "count"), citations=("citations", "sum"))
                     .reset_index()
                     .sort_values("year")
                 )
-
                 fig_auth_trend = make_subplots(specs=[[{"secondary_y": True}]])
                 fig_auth_trend.add_trace(
                     go.Bar(
@@ -776,10 +835,8 @@ with tab5:
                 st.plotly_chart(fig_auth_trend, use_container_width=True)
 
             with ac_col2:
-                # Author Quartile Donut Chart
                 auth_q_counts = author_df["quartile"].value_counts().reset_index()
                 auth_q_counts.columns = ["quartile", "count"]
-
                 fig_auth_q = px.pie(
                     auth_q_counts,
                     values="count",
@@ -797,7 +854,6 @@ with tab5:
                 apply_plotly_theme(fig_auth_q, st.session_state.get("theme", "dark"))
                 st.plotly_chart(fig_auth_q, use_container_width=True)
 
-            # Top 5 Landmark Contributions
             st.markdown(f"#### 📜 Top 5 Landmark Contributions - {selected_author}")
             top5_auth_papers = author_df.sort_values(by="citations", ascending=False).head(5).copy()
             top5_auth_papers["DOI Link"] = top5_auth_papers["doi"].apply(
@@ -810,7 +866,6 @@ with tab5:
                 unsafe_allow_html=True,
             )
 
-            # Full Papers Table
             st.markdown(f"#### 📚 Complete Indexed Publications ({len(author_df)})")
             st.dataframe(
                 author_df[["year", "title", "journal", "quartile", "citations", "doi"]].sort_values(
@@ -827,7 +882,6 @@ with tab5:
 with tab6:
     st.markdown("### 📡 Live Feed & Data Export Center")
 
-    # Keyword Search Bar
     search_kw = st.text_input(
         "🔍 Search Publications by Keyword, Title, Author, Journal, or DOI",
         placeholder="Type to filter... (e.g., Chemistry, Nanoparticles, Mahulikar, 2026)",
@@ -845,7 +899,6 @@ with tab6:
         )
         search_df = search_df[mask]
 
-    # Export Controls Header
     ex_col1, ex_col2, ex_info = st.columns([1, 1, 2])
 
     with ex_col1:
@@ -880,7 +933,6 @@ with tab6:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Interactive Table
     st.dataframe(
         search_df[
             ["year", "title", "primary_author", "department", "journal", "quartile", "citations", "doi"]
@@ -897,7 +949,6 @@ with tab7:
     st.markdown("### 🤖 Scopus AI Research Intelligence Assistant")
     st.caption("Fast built-in Pandas/Python natural language research assistant. Zero external API dependencies.")
 
-    # Clear Chat History & Header Controls
     if "chat_history" not in st.session_state:
         st.session_state["chat_history"] = []
 
@@ -907,7 +958,6 @@ with tab7:
             st.session_state["chat_history"] = []
             st.rerun()
 
-    # Prompt Chips
     st.markdown("##### 💡 Preset Prompt Chips")
     chip_c1, chip_c2, chip_c3, chip_c4 = st.columns(4)
 
@@ -928,28 +978,22 @@ with tab7:
 
     st.markdown("---")
 
-    # Display Chat History
     for msg in st.session_state["chat_history"]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Handle Chat Input or Prompt Trigger
     user_input = st.chat_input("💬 Ask AI Copilot anything about KBCNMU research data...")
 
     active_prompt = prompt_trigger or user_input
 
     if active_prompt:
-        # Add user message
         st.session_state["chat_history"].append({"role": "user", "content": active_prompt})
         with st.chat_message("user"):
             st.markdown(active_prompt)
 
-        # Generate response using ai_copilot module
         with st.chat_message("assistant"):
             with st.spinner("Analyzing KBCNMU dataset..."):
                 response_md = query_scopus_ai_copilot(active_prompt, filtered_df)
                 st.markdown(response_md)
 
         st.session_state["chat_history"].append({"role": "assistant", "content": response_md})
-
-
