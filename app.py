@@ -6,6 +6,7 @@ Main Streamlit application featuring ICARE Glassmorphism design, real-time Scopu
 """
 
 import base64
+import io
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -13,6 +14,7 @@ from plotly.subplots import make_subplots
 import streamlit as st
 import streamlit.components.v1 as components
 
+from ai_copilot import query_scopus_ai_copilot
 from config import UNIVERSITY_CONFIG
 from data_processor import (
     calculate_top_10_kpis,
@@ -26,6 +28,20 @@ from data_processor import (
 )
 from scopus_api import load_scopus_data
 from styles import get_custom_css, render_icare_hero, render_icare_topbar
+
+
+def convert_df_to_excel(export_df: pd.DataFrame) -> bytes:
+    """Convert publication DataFrame to downloadable Excel bytes buffer."""
+    output = io.BytesIO()
+    # Remove complex types like lists before exporting
+    clean_df = export_df.copy()
+    if "countries" in clean_df:
+        clean_df["countries"] = clean_df["countries"].apply(lambda c: ", ".join(c) if isinstance(c, list) else str(c))
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        clean_df.to_excel(writer, index=False, sheet_name="KBCNMU_Publications")
+    return output.getvalue()
+
 
 # 1. Page Configuration
 st.set_page_config(
@@ -205,12 +221,14 @@ with m_col5:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # 5. Dashboard Visualization Tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📈 Research Trends",
     "🎯 Citation & Impact",
     "🌐 Global Collaboration",
     "🏆 Quality & Benchmarks",
-    "👤 Author Leaderboard",
+    "👥 Faculty Authors",
+    "📡 Live Feed & Export",
+    "🤖 AI Copilot",
 ])
 
 # ----------------------------------------------------
@@ -801,4 +819,137 @@ with tab5:
                 use_container_width=True,
                 height=350,
             )
+
+
+# ----------------------------------------------------
+# TAB 6: 📡 LIVE FEED & EXPORT
+# ----------------------------------------------------
+with tab6:
+    st.markdown("### 📡 Live Feed & Data Export Center")
+
+    # Keyword Search Bar
+    search_kw = st.text_input(
+        "🔍 Search Publications by Keyword, Title, Author, Journal, or DOI",
+        placeholder="Type to filter... (e.g., Chemistry, Nanoparticles, Mahulikar, 2026)",
+    )
+
+    search_df = filtered_df.copy()
+    if search_kw.strip():
+        kw = search_kw.strip().lower()
+        mask = (
+            search_df["title"].astype(str).str.lower().str.contains(kw)
+            | search_df["authors"].astype(str).str.lower().str.contains(kw)
+            | search_df["journal"].astype(str).str.lower().str.contains(kw)
+            | search_df["department"].astype(str).str.lower().str.contains(kw)
+            | search_df["doi"].astype(str).str.lower().str.contains(kw)
+        )
+        search_df = search_df[mask]
+
+    # Export Controls Header
+    ex_col1, ex_col2, ex_info = st.columns([1, 1, 2])
+
+    with ex_col1:
+        excel_bytes = convert_df_to_excel(search_df)
+        st.download_button(
+            label="📊 Export Excel (.xlsx)",
+            data=excel_bytes,
+            file_name="kbcnmu_scopus_filtered.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
+
+    with ex_col2:
+        bib_bytes = export_to_bibtex(search_df)
+        st.download_button(
+            label="📑 Export BibTeX (.bib)",
+            data=bib_bytes,
+            file_name="kbcnmu_scopus_filtered.bib",
+            mime="text/x-bibtex",
+            use_container_width=True,
+        )
+
+    with ex_info:
+        st.markdown(
+            f"""
+            <div style="background: rgba(2, 132, 199, 0.1); border: 1px solid rgba(2, 132, 199, 0.2); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; font-size: 0.9rem; color: #38BDF8;">
+                Showing {len(search_df):,} matching publication records
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Interactive Table
+    st.dataframe(
+        search_df[
+            ["year", "title", "primary_author", "department", "journal", "quartile", "citations", "doi"]
+        ].sort_values(by="year", ascending=False),
+        use_container_width=True,
+        height=520,
+    )
+
+
+# ----------------------------------------------------
+# TAB 7: 🤖 AI COPILOT
+# ----------------------------------------------------
+with tab7:
+    st.markdown("### 🤖 Scopus AI Research Intelligence Assistant")
+    st.caption("Fast built-in Pandas/Python natural language research assistant. Zero external API dependencies.")
+
+    # Clear Chat History & Header Controls
+    if "chat_history" not in st.session_state:
+        st.session_state["chat_history"] = []
+
+    hdr_c1, hdr_c2 = st.columns([3, 1])
+    with hdr_c2:
+        if st.button("🗑️ Clear Chat History", use_container_width=True):
+            st.session_state["chat_history"] = []
+            st.rerun()
+
+    # Prompt Chips
+    st.markdown("##### 💡 Preset Prompt Chips")
+    chip_c1, chip_c2, chip_c3, chip_c4 = st.columns(4)
+
+    prompt_trigger = None
+
+    with chip_c1:
+        if st.button("📊 Executive Dossier", use_container_width=True):
+            prompt_trigger = "Executive Dossier"
+    with chip_c2:
+        if st.button("🏛️ Dept Rankings", use_container_width=True):
+            prompt_trigger = "Dept Rankings"
+    with chip_c3:
+        if st.button("🏆 Q1 Quality Analysis", use_container_width=True):
+            prompt_trigger = "Q1 Quality Analysis"
+    with chip_c4:
+        if st.button("👥 Top Authors", use_container_width=True):
+            prompt_trigger = "Top Authors"
+
+    st.markdown("---")
+
+    # Display Chat History
+    for msg in st.session_state["chat_history"]:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # Handle Chat Input or Prompt Trigger
+    user_input = st.chat_input("💬 Ask AI Copilot anything about KBCNMU research data...")
+
+    active_prompt = prompt_trigger or user_input
+
+    if active_prompt:
+        # Add user message
+        st.session_state["chat_history"].append({"role": "user", "content": active_prompt})
+        with st.chat_message("user"):
+            st.markdown(active_prompt)
+
+        # Generate response using ai_copilot module
+        with st.chat_message("assistant"):
+            with st.spinner("Analyzing KBCNMU dataset..."):
+                response_md = query_scopus_ai_copilot(active_prompt, filtered_df)
+                st.markdown(response_md)
+
+        st.session_state["chat_history"].append({"role": "assistant", "content": response_md})
+
 
