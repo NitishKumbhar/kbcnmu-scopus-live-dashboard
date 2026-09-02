@@ -594,27 +594,59 @@ with tab4:
                 .reset_index()
             )
             dept_summary["cpp"] = (dept_summary["total_citations"] / dept_summary["publications"]).round(2)
+            dept_summary["avg_citescore"] = dept_summary["avg_citescore"].round(2)
             avg_cpp_bench = round(dept_summary["cpp"].mean(), 2) if not dept_summary.empty else 0
 
+            # Clean Bubble Chart without overlapping text
             fig_bubble = px.scatter(
                 dept_summary,
                 x="publications",
                 y="cpp",
                 size="total_citations",
                 color="department",
-                text="department",
+                hover_name="department",
                 title="📍 Department Impact vs. Volume Quadrant",
-                hover_data=["avg_citescore"],
+                hover_data={"publications": True, "cpp": True, "total_citations": True, "avg_citescore": True, "department": False},
+                size_max=35,
             )
+
+            # Enhanced marker styling for crisp bubbles
+            fig_bubble.update_traces(
+                marker=dict(
+                    sizemin=10,
+                    opacity=0.85,
+                    line=dict(width=1.5, color="#FFFFFF"),
+                )
+            )
+
+            # Benchmark Line & Axis Titles
             fig_bubble.add_hline(
                 y=avg_cpp_bench,
                 line_dash="dash",
                 line_color="#F59E0B",
                 annotation_text=f"Average CPP ({avg_cpp_bench})",
-                annotation_position="top right",
+                annotation_position="bottom right",
+                annotation_font=dict(color="#F59E0B", size=11, family="Inter, sans-serif"),
             )
+
+            fig_bubble.update_layout(
+                xaxis_title="Publications Volume",
+                yaxis_title="Citations Per Paper (CPP)",
+                legend=dict(
+                    title_text="",
+                    orientation="h",
+                    yanchor="top",
+                    y=-0.25,
+                    xanchor="center",
+                    x=0.5,
+                    font=dict(size=10),
+                ),
+                height=480,
+            )
+
             apply_plotly_theme(fig_bubble, st.session_state.get("theme", "dark"))
             st.plotly_chart(fig_bubble, use_container_width=True)
+
 
     st.markdown("#### 🎯 Department Multi-Dimensional Radar Benchmark")
     if not filtered_df.empty:
